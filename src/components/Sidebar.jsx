@@ -129,7 +129,7 @@ function Sidebar() {
           </div>
         ))}
       </nav>
-      <button className="mt-8 flex w-full items-center gap-3 rounded-xl border border-white/5 bg-[#101f34] p-3 text-left shadow-lg shadow-slate-950/20 transition-colors hover:bg-[#142640]">
+      <NavLink to="/profile" aria-label="View profile" className="mt-8 flex w-full items-center gap-3 rounded-xl border border-white/5 bg-[#101f34] p-3 text-left shadow-lg shadow-slate-950/20 transition-colors hover:bg-[#142640]">
         <span className="relative grid h-10 w-10 shrink-0 place-items-center rounded-full bg-indigo-500/15 text-sm font-bold text-indigo-200 ring-1 ring-indigo-400/30">
           IA
           <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[#101f34] bg-emerald-400" />
@@ -141,7 +141,7 @@ function Sidebar() {
           <span className="block text-xs text-slate-500">Administrator</span>
         </span>
         <span className="text-slate-500">›</span>
-      </button>
+      </NavLink>
     </aside>
   );
 }

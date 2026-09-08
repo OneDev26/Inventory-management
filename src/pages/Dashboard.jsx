@@ -1,4 +1,5 @@
-﻿import Header from "../components/Header";
+import { Link } from "react-router-dom";
+import Header from "../components/Header";
 import laptopImage from "../assets/laptop.png";
 import cpuImage from "../assets/cpu.png";
 import monitorImage from "../assets/monitor.png";
@@ -281,14 +282,26 @@ const colorClasses = {
   green: "bg-green-50 text-green-600",
 };
 
-function SectionHeader({ title, button = "View All" }) {
+function SectionHeader({ title, button = "View All", to }) {
   return (
-    <div className="flex items-center justify-between mb-4">
+    <div className="mb-4 flex items-center justify-between">
       <h2 className="text-sm font-semibold text-slate-800">{title}</h2>
 
-      <button className="text-xs font-semibold text-blue-600 hover:text-blue-700">
-        {button}
-      </button>
+      {to ? (
+        <Link
+          to={to}
+          className="text-xs font-semibold text-blue-600 hover:text-blue-700"
+        >
+          {button}
+        </Link>
+      ) : (
+        <button
+          type="button"
+          className="text-xs font-semibold text-blue-600 hover:text-blue-700"
+        >
+          {button}
+        </button>
+      )}
     </div>
   );
 }
@@ -335,7 +348,7 @@ function DashboardStats() {
 function DepartmentSummary() {
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-4 h-full">
-      <SectionHeader title="Department Summary" button="View All Departments" />
+      <SectionHeader title="Department Summary" button="View All Departments" to="/departments" />
 
       <div className="overflow-x-auto">
         <table className="w-full min-w-[520px]">
@@ -438,7 +451,7 @@ function MiniStat({ icon: Icon, label, value }) {
 function LowStock() {
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-4 h-full">
-      <SectionHeader title="Low Stock Consumables" />
+      <SectionHeader title="Low Stock Consumables" to="/consumables/low-stock" />
 
       <div className="space-y-3">
         {consumables.map((item) => {
@@ -485,7 +498,7 @@ function LowStock() {
 function RecentAssignedAssets() {
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-4">
-      <SectionHeader title="Recent Assigned Assets" />
+      <SectionHeader title="Recent Assigned Assets" to="/inventory/assign" />
 
       <div className="overflow-x-auto">
         <table className="w-full min-w-[650px]">
@@ -704,7 +717,7 @@ function QuickActions() {
 function RecentDamageReports() {
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-4">
-      <SectionHeader title="Recent Damage Reports" />
+      <SectionHeader title="Recent Damage Reports" to="/inventory/repairs" />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {damageReports.map((item) => {

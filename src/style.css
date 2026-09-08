@@ -1,4 +1,4 @@
-﻿@import "tailwindcss";
+@import "tailwindcss";
 
 @font-face {
   font-family: "Geist";
@@ -16,4 +16,41 @@
   html { font-family: "Geist", ui-sans-serif, system-ui, sans-serif; }
   body { margin: 0; min-width: 320px; min-height: 100vh; font-weight: 400; }
   button, input, select, textarea { font: inherit; }
+}
+
+@keyframes repair-menu-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes profile-editor-enter {
+  from { opacity: 0; transform: translateY(14px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes profile-editor-exit {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(10px) scale(0.96); }
+}
+
+@keyframes profile-backdrop-enter {
+  from { background-color: rgb(15 23 42 / 0); }
+  to { background-color: rgb(15 23 42 / 60%); }
+}
+
+@keyframes profile-backdrop-exit {
+  from { background-color: rgb(15 23 42 / 60%); }
+  to { background-color: rgb(15 23 42 / 0); }
+}
+
+.profile-editor[open] { animation: profile-editor-enter 240ms ease-out both; }
+.profile-editor::backdrop { background-color: rgb(15 23 42 / 60%); animation: profile-backdrop-enter 240ms ease-out both; }
+.profile-editor.profile-editor-closing { animation: profile-editor-exit 200ms ease-in both; }
+.profile-editor-closing::backdrop { animation: profile-backdrop-exit 200ms ease-in both; }
+body:has(.profile-editor[open]) #app { pointer-events: none; }
+body:has(.profile-editor[open]) #app > div > div { overflow: hidden; }
+.profile-editor { pointer-events: auto; }
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-editor[open], .profile-editor::backdrop { animation: none; }
 }

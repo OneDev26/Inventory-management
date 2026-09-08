@@ -1,4 +1,6 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+import PageButton from "../components/PageButton";
+import FilterSelect from "../components/FilterSelect";
+import React, { useEffect, useMemo, useState } from "react";
 import Header from "../components/Header";
 import { useDispatch, useSelector } from "react-redux";
 import { consumableAdded, selectCreatedConsumables } from "../store/consumablesSlice";
@@ -21,7 +23,9 @@ import {
   Layers3,
   MoreVertical,
   Plus,
+  PackagePlus,
   Search,
+  Trash2,
   UploadCloud,
   X,
 } from "lucide-react";
@@ -170,6 +174,10 @@ export default function Consumables() {
   const [page, setPage] = useState(1);
   const [modalMounted, setModalMounted] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
+  const [rowChanges, setRowChanges] = useState({});
+  const [removedIds, setRemovedIds] = useState([]);
+  const [openActionId, setOpenActionId] = useState(null);
+  const [editingItem, setEditingItem] = useState(null);
 
   const openConsumableModal = () => {
     setModalMounted(true);
@@ -190,10 +198,22 @@ export default function Consumables() {
     };
   }, [modalMounted]);
 
+  useEffect(() => {
+    if (openActionId === null) return undefined;
+    const closeMenu = () => setOpenActionId(null);
+    document.addEventListener("click", closeMenu);
+    return () => document.removeEventListener("click", closeMenu);
+  }, [openActionId]);
+
+  const updateConsumable = (id, changes) => setRowChanges((current) => ({ ...current, [id]: { ...(current[id] ?? {}), ...changes } }));
+  const restockConsumable = (item) => { const stock = Number(item.stock) + 5; const limit = Number.parseFloat(item.alert); updateConsumable(item.id, { stock, status: stock <= limit ? "Low Stock" : "In Stock", updated: "Today" }); setOpenActionId(null); };
+  const markOutOfStock = (item) => { updateConsumable(item.id, { stock: 0, status: "Out of Stock", updated: "Today" }); setOpenActionId(null); };
+  const deleteConsumable = (id) => { setRemovedIds((ids) => [...ids, id]); setOpenActionId(null); };
+
   const filteredConsumables = useMemo(() => {
     const q = search.trim().toLowerCase();
 
-    return [...createdConsumables, ...consumablesData].filter((item) => {
+    return [...createdConsumables, ...consumablesData].filter((item) => !removedIds.includes(item.id)).map((item) => ({ ...item, ...(rowChanges[item.id] ?? {}) })).filter((item) => {
       const matchesSearch =
         !q ||
         item.name.toLowerCase().includes(q) ||
@@ -213,10 +233,11 @@ export default function Consumables() {
         matchesStatus
       );
     });
-  }, [search, category, status, createdConsumables]);
+  }, [search, category, status, createdConsumables, rowChanges, removedIds]);
 
   return (
     <main className="min-h-screen bg-[#f8f9fc] px-4 py-5 font-['Geist',sans-serif] text-slate-900">
+      {editingItem && <EditConsumableModal item={{ ...editingItem, ...(rowChanges[editingItem.id] ?? {}) }} onClose={() => setEditingItem(null)} onSave={(changes) => { updateConsumable(editingItem.id, changes); setEditingItem(null); }} />}
       {modalMounted && (
         <AddConsumableModal visible={modalVisible} onClose={closeConsumableModal} onAdd={(item) => dispatch(consumableAdded({ ...item, image: coffeeImage }))} />
       )}
@@ -334,7 +355,7 @@ export default function Consumables() {
             </thead>
 
             <tbody>
-              {filteredConsumables.map((item) => (
+              {filteredConsumables.map((item, index) => (
                 <tr
                   key={item.id}
                   className="border-b border-slate-100 last:border-b-0 transition hover:bg-slate-50/60"
@@ -383,19 +404,10 @@ export default function Consumables() {
                   {/* Actions */}
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-2">
-                      <button
-                        title="Edit Consumable"
-                        className="grid h-8 w-8 place-items-center rounded-md border border-slate-200 text-violet-600 transition hover:border-violet-200 hover:bg-violet-50"
-                      >
-                        <Edit3 size={13} />
-                      </button>
-
-                      <button
-                        title="More Actions"
-                        className="grid h-8 w-8 place-items-center rounded-md border border-slate-200 text-slate-500 transition hover:bg-slate-50"
-                      >
-                        <MoreVertical size={14} />
-                      </button>
+                      <button type="button" onClick={() => setEditingItem(item)} title="Edit Consumable" className="grid h-8 w-8 place-items-center rounded-md border border-slate-200 text-violet-600 transition hover:border-violet-200 hover:bg-violet-50"><Edit3 size={13}/></button>
+                      <div className="relative"><button type="button" onClick={(event) => { event.stopPropagation(); setOpenActionId((current) => current === item.id ? null : item.id); }} title="More Actions" className="grid h-8 w-8 place-items-center rounded-md border border-slate-200 text-slate-500 transition hover:bg-slate-50"><MoreVertical size={14}/></button>
+                        {openActionId === item.id && <div onClick={(event) => event.stopPropagation()} className={`absolute right-0 z-30 w-48 origin-top-right animate-[repair-menu-in_160ms_ease-out] overflow-hidden rounded-lg border border-slate-200 bg-white py-1.5 shadow-xl ${index >= filteredConsumables.length - 2 ? "bottom-10" : "top-10"}`}><button type="button" onClick={() => restockConsumable(item)} className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50"><PackagePlus size={14} className="text-emerald-600"/>Add 5 to stock</button>{item.stock > 0 && <button type="button" onClick={() => markOutOfStock(item)} className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50"><AlertCircle size={14} className="text-amber-600"/>Mark out of stock</button>}<div className="my-1 border-t border-slate-100"/><button type="button" onClick={() => deleteConsumable(item.id)} className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-rose-600 hover:bg-rose-50"><Trash2 size={14}/>Delete consumable</button></div>}
+                      </div>
                     </div>
                   </td>
                 </tr>
@@ -456,6 +468,17 @@ export default function Consumables() {
 
 /* ------------------ Components ------------------ */
 
+function EditConsumableModal({ item, onClose, onSave }) {
+  const [visible, setVisible] = useState(false);
+  const [form, setForm] = useState({ name: item.name, category: item.category, unit: item.unit, stock: item.stock, alert: Number.parseFloat(item.alert) || 0 });
+  const handleClose = () => { setVisible(false); window.setTimeout(onClose, 220); };
+  useEffect(() => { requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true))); const keydown = (event) => event.key === "Escape" && handleClose(); document.addEventListener("keydown", keydown); document.body.style.overflow = "hidden"; return () => { document.removeEventListener("keydown", keydown); document.body.style.overflow = ""; }; }, []);
+  const setField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
+  const submit = (event) => { event.preventDefault(); const stock = Number(form.stock); const alert = Number(form.alert); onSave({ ...form, stock, alert: `${alert} ${form.unit}`, status: stock === 0 ? "Out of Stock" : stock <= alert ? "Low Stock" : "In Stock", updated: "Today" }); };
+  const inputClass = "h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100";
+  return <div onMouseDown={(event) => event.target === event.currentTarget && handleClose()} className={`fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-[1px] transition-opacity duration-200 ${visible ? "opacity-100" : "opacity-0"}`}><section className={`w-full max-w-[620px] overflow-hidden rounded-2xl bg-white shadow-2xl transition-all duration-200 ease-out ${visible ? "translate-y-0 scale-100 opacity-100" : "translate-y-5 scale-[0.96] opacity-0"}`}><header className="flex items-start justify-between border-b border-slate-200 px-6 py-5"><div><h2 className="text-xl font-bold">Edit Consumable</h2><p className="mt-1 text-sm text-slate-500">Update item details and stock information.</p></div><button type="button" onClick={handleClose} className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-100"><X size={18}/></button></header><form onSubmit={submit}><div className="grid grid-cols-2 gap-4 p-6"><ModalField label="Item Name" required><input required value={form.name} onChange={(event) => setField("name", event.target.value)} className={inputClass}/></ModalField><ModalField label="Category" required><select value={form.category} onChange={(event) => setField("category", event.target.value)} className={inputClass}><option>Pantry</option><option>Housekeeping</option><option>Office Supplies</option></select></ModalField><ModalField label="Unit" required><select value={form.unit} onChange={(event) => setField("unit", event.target.value)} className={inputClass}><option>kg</option><option>liters</option><option>packs</option><option>rolls</option><option>bottles</option><option>pieces</option></select></ModalField><ModalField label="Current Stock" required><input required min="0" step="any" type="number" value={form.stock} onChange={(event) => setField("stock", event.target.value)} className={inputClass}/></ModalField><ModalField label="Low Stock Alert" required><input required min="0" step="any" type="number" value={form.alert} onChange={(event) => setField("alert", event.target.value)} className={inputClass}/></ModalField></div><footer className="flex justify-end gap-3 border-t border-slate-200 px-6 py-4"><button type="button" onClick={handleClose} className="h-10 rounded-md border border-slate-200 px-5 text-sm font-semibold">Cancel</button><button type="submit" className="h-10 rounded-md bg-violet-600 px-5 text-sm font-semibold text-white hover:bg-violet-700">Save Changes</button></footer></form></section></div>;
+}
+
 function AddConsumableModal({ visible, onClose, onAdd }) {
   const inputClass = "h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-violet-400 focus:ring-2 focus:ring-violet-100";
   return (
@@ -496,30 +519,7 @@ function ModalField({ label, required = false, children }) {
 }
 function UnitInput({ name, placeholder, required = false }) {
   return <div className="flex h-10 overflow-hidden rounded-md border border-slate-200 bg-white focus-within:border-violet-400 focus-within:ring-2 focus-within:ring-violet-100"><input name={name} type="number" min="0" step="any" required={required} placeholder={placeholder} className="min-w-0 flex-1 px-3 text-sm font-medium text-slate-700 outline-none placeholder:text-slate-400" /><span className="grid place-items-center border-l border-slate-200 px-3 text-xs font-medium text-slate-500">Unit</span></div>;
-}function FilterSelect({
-  value,
-  setValue,
-  options,
-  width,
-}) {
-  return (
-    <select
-      value={value}
-      onChange={(e) => setValue(e.target.value)}
-      className={`${width} h-10 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100`}
-    >
-      {options.map((option) => (
-        <option
-          key={option}
-          value={option}
-        >
-          {option}
-        </option>
-      ))}
-    </select>
-  );
 }
-
 function StockStatus({ status }) {
   const styles = {
     "In Stock":
@@ -538,26 +538,4 @@ function StockStatus({ status }) {
     </span>
   );
 }
-
-function PageButton({
-  children,
-  active,
-  onClick,
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`grid h-8 min-w-8 place-items-center rounded-md border px-2 text-xs font-medium transition ${
-        active
-          ? "border-violet-600 bg-violet-600 text-white shadow-sm"
-          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
-
-
 

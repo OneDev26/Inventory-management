@@ -1,4 +1,6 @@
-﻿import React, { useMemo, useState } from "react";
+import PageButton from "../components/PageButton";
+import FilterSelect from "../components/FilterSelect";
+import React, { useEffect, useMemo, useState } from "react";
 import Header from "../components/Header";
 import coffeeImage from "../assets/coffee.png";
 import milkImage from "../assets/milk.png";
@@ -15,6 +17,7 @@ import {
   PieChart,
   Search,
   TrendingDown,
+  X,
 } from "lucide-react";
 
 const stats = [
@@ -170,6 +173,7 @@ export default function StockUsage() {
   const [issuedBy, setIssuedBy] = useState("All Issued By");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [selectedUsage, setSelectedUsage] = useState(null);
 
   const filteredHistory = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -204,6 +208,7 @@ export default function StockUsage() {
 
   return (
     <main className="min-h-screen bg-[#f8f9fc] px-4 py-5 font-['Geist',sans-serif] text-slate-900">
+      {selectedUsage && <UsageDetailsModal item={selectedUsage} onClose={() => setSelectedUsage(null)} />}
       {/* HEADER */}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -449,7 +454,7 @@ export default function StockUsage() {
                   </td>
 
                   <td className="px-4 py-3">
-                    <button className="grid h-8 w-8 place-items-center rounded-md border border-slate-200 text-indigo-600 hover:bg-indigo-50">
+                    <button type="button" onClick={() => setSelectedUsage(item)} aria-label={`View usage details for ${item.name}`} className="grid h-8 w-8 place-items-center rounded-md border border-slate-200 text-indigo-600 transition hover:bg-indigo-50">
                       <Eye size={13} />
                     </button>
                   </td>
@@ -466,12 +471,12 @@ export default function StockUsage() {
           </p>
 
           <div className="flex items-center gap-1.5">
-            <PageButton>
+            <PageButton activeVariant="outline">
               <ChevronLeft size={12} />
             </PageButton>
 
             {[1, 2, 3].map((number) => (
-              <PageButton
+              <PageButton activeVariant="outline"
                 key={number}
                 active={page === number}
                 onClick={() => setPage(number)}
@@ -484,11 +489,11 @@ export default function StockUsage() {
               ...
             </span>
 
-            <PageButton onClick={() => setPage(8)}>
+            <PageButton activeVariant="outline" onClick={() => setPage(8)}>
               8
             </PageButton>
 
-            <PageButton>
+            <PageButton activeVariant="outline">
               <ChevronRight size={12} />
             </PageButton>
           </div>
@@ -498,27 +503,26 @@ export default function StockUsage() {
   );
 }
 
-function FilterSelect({
-  value,
-  setValue,
-  options,
-}) {
-  return (
-    <select
-      value={value}
-      onChange={(e) => setValue(e.target.value)}
-      className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
-    >
-      {options.map((option) => (
-        <option
-          key={option}
-          value={option}
-        >
-          {option}
-        </option>
-      ))}
-    </select>
-  );
+
+function UsageDetailsModal({ item, onClose }) {
+  const [visible, setVisible] = useState(false);
+  const handleClose = () => { setVisible(false); window.setTimeout(onClose, 220); };
+
+  useEffect(() => {
+    requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true)));
+    const handleKeyDown = (event) => event.key === "Escape" && handleClose();
+    document.addEventListener("keydown", handleKeyDown);
+    document.body.style.overflow = "hidden";
+    return () => { document.removeEventListener("keydown", handleKeyDown); document.body.style.overflow = ""; };
+  }, []);
+
+  const details = [
+    ["Date", item.date], ["Time", item.time], ["Category", item.category],
+    ["Quantity Used", `${item.quantity} ${item.unit}`], ["Issued To", item.issuedTo],
+    ["Issued By", item.issuedBy], ["Purpose", item.purpose], ["Location", item.location],
+  ];
+
+  return <div onMouseDown={(event) => event.target === event.currentTarget && handleClose()} className={`fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-[1px] transition-opacity duration-200 ${visible ? "opacity-100" : "opacity-0"}`}><section role="dialog" aria-modal="true" aria-labelledby="usage-details-title" className={`w-full max-w-[580px] overflow-hidden rounded-2xl bg-white shadow-2xl transition-all duration-200 ease-out ${visible ? "translate-y-0 scale-100 opacity-100" : "translate-y-5 scale-[0.96] opacity-0"}`}><header className="flex items-start justify-between border-b border-slate-200 px-6 py-5"><div><h2 id="usage-details-title" className="text-xl font-bold text-slate-900">Stock Usage Details</h2><p className="mt-1 text-sm text-slate-500">Complete information for this usage entry.</p></div><button type="button" onClick={handleClose} aria-label="Close usage details" className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100"><X size={18}/></button></header><div className="p-6"><div className="flex items-center gap-4 rounded-xl bg-slate-50 p-4"><span className="grid h-14 w-14 place-items-center overflow-hidden rounded-xl bg-white"><img src={item.image} alt="" className="h-full w-full object-contain p-1"/></span><div><h3 className="text-base font-semibold text-slate-900">{item.name}</h3><p className="mt-1 text-xs text-slate-500">{item.category} · {item.unit}</p></div></div><div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-5">{details.map(([label,value]) => <div key={label}><p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{label}</p><p className="mt-1.5 text-sm font-medium text-slate-700">{value}</p></div>)}</div></div><footer className="flex justify-end border-t border-slate-200 px-6 py-4"><button type="button" onClick={handleClose} className="h-10 rounded-lg bg-violet-600 px-5 text-sm font-semibold text-white transition hover:bg-violet-700">Close</button></footer></section></div>;
 }
 
 function UsageLineChart({ values }) {
@@ -652,21 +656,3 @@ function UsageLineChart({ values }) {
   );
 }
 
-function PageButton({
-  children,
-  active,
-  onClick,
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`grid h-8 min-w-8 place-items-center rounded-md border px-2 text-xs font-medium transition ${
-        active
-          ? "border-violet-600 bg-white text-violet-600 shadow-sm"
-          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}

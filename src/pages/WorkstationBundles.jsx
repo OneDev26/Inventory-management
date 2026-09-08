@@ -1,4 +1,4 @@
-﻿import Header from "../components/Header";
+import Header from "../components/Header";
 import workstationBundleImage from "../assets/workstation_bundle.png";
 import laptopImage from "../assets/laptop.png";
 import monitorImage from "../assets/monitor.png";
@@ -11,6 +11,7 @@ import {
   BriefcaseBusiness,
   ChevronRight,
   Clock3,
+  Copy,
   Edit3,
   Filter,
   FlaskConical,
@@ -22,6 +23,7 @@ import {
   PackageCheck,
   Plus,
   Search,
+  Trash2,
   UploadCloud,
   X,
 } from "lucide-react";
@@ -135,6 +137,11 @@ const bundleData = [
 export default function WorkstationBundles() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [bundleRows, setBundleRows] = useState(bundleData);
+  const [openActionId, setOpenActionId] = useState(null);
+  const [editingBundle, setEditingBundle] = useState(null);
+  const [editModalMounted, setEditModalMounted] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
   const [bundleModalMounted, setBundleModalMounted] = useState(false);
   const [bundleModalVisible, setBundleModalVisible] = useState(false);
   const openBundleModal = () => { setBundleModalMounted(true); requestAnimationFrame(() => requestAnimationFrame(() => setBundleModalVisible(true))); };
@@ -149,7 +156,7 @@ export default function WorkstationBundles() {
   const filteredBundles = useMemo(() => {
     const q = search.trim().toLowerCase();
 
-    return bundleData.filter((bundle) => {
+    return bundleRows.filter((bundle) => {
       const matchesSearch =
         !q ||
         bundle.name.toLowerCase().includes(q) ||
@@ -160,11 +167,52 @@ export default function WorkstationBundles() {
 
       return matchesSearch && matchesStatus;
     });
-  }, [search, statusFilter]);
+  }, [search, statusFilter, bundleRows]);
 
+  useEffect(() => {
+    if (openActionId === null) return undefined;
+    const closeMenu = () => setOpenActionId(null);
+    document.addEventListener("click", closeMenu);
+    return () => document.removeEventListener("click", closeMenu);
+  }, [openActionId]);
+
+  const openEditModal = (bundle) => {
+    setEditingBundle(bundle);
+    setEditModalMounted(true);
+    requestAnimationFrame(() => requestAnimationFrame(() => setEditModalVisible(true)));
+  };
+
+  const closeEditModal = () => {
+    setEditModalVisible(false);
+    window.setTimeout(() => {
+      setEditModalMounted(false);
+      setEditingBundle(null);
+    }, 220);
+  };
+
+  const saveBundle = (updatedBundle) => {
+    setBundleRows((current) => current.map((bundle) => bundle.id === updatedBundle.id ? updatedBundle : bundle));
+    closeEditModal();
+  };
+
+  const toggleBundleStatus = (bundleId) => {
+    setBundleRows((current) => current.map((bundle) => bundle.id === bundleId ? { ...bundle, status: bundle.status === "Active" ? "Inactive" : "Active" } : bundle));
+    setOpenActionId(null);
+  };
+
+  const duplicateBundle = (bundle) => {
+    setBundleRows((current) => [...current, { ...bundle, id: Math.max(...current.map((item) => item.id)) + 1, name: `${bundle.name} Copy`, inUse: 0, usageLabel: "Employees", status: "Inactive" }]);
+    setOpenActionId(null);
+  };
+
+  const deleteBundle = (bundleId) => {
+    setBundleRows((current) => current.filter((bundle) => bundle.id !== bundleId));
+    setOpenActionId(null);
+  };
   return (
     <main className="min-h-screen bg-[#f8f9fc] px-4 py-5 font-['Geist',sans-serif] text-slate-900">
       {bundleModalMounted && <CreateBundleModal visible={bundleModalVisible} onClose={closeBundleModal} />}
+      {editModalMounted && editingBundle && <EditBundleModal bundle={editingBundle} visible={editModalVisible} onClose={closeEditModal} onSave={saveBundle} />}
       {/* Header */}
       <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -289,7 +337,7 @@ export default function WorkstationBundles() {
             </thead>
 
             <tbody>
-              {filteredBundles.map((bundle) => {
+              {filteredBundles.map((bundle, index) => {
                 const Icon = bundle.icon;
 
                 return (
@@ -344,13 +392,23 @@ export default function WorkstationBundles() {
                     {/* Actions */}
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <button className="grid h-8 w-8 place-items-center rounded-md border border-slate-200 text-slate-500 transition hover:border-violet-200 hover:bg-violet-50 hover:text-violet-600">
+                        <button type="button" onClick={() => openEditModal(bundle)} aria-label={`Edit ${bundle.name}`} className="grid h-8 w-8 place-items-center rounded-md border border-slate-200 text-slate-500 transition hover:border-violet-200 hover:bg-violet-50 hover:text-violet-600">
                           <Edit3 size={13} />
                         </button>
 
-                        <button className="grid h-8 w-8 place-items-center rounded-md border border-slate-200 text-slate-500 transition hover:bg-slate-50">
-                          <MoreVertical size={14} />
-                        </button>
+                        <div className="relative">
+                          <button type="button" onClick={(event) => { event.stopPropagation(); setOpenActionId((current) => current === bundle.id ? null : bundle.id); }} aria-label={`Manage ${bundle.name}`} aria-haspopup="menu" aria-expanded={openActionId === bundle.id} className="grid h-8 w-8 place-items-center rounded-md border border-slate-200 text-slate-500 transition hover:bg-slate-50">
+                            <MoreVertical size={14} />
+                          </button>
+                          {openActionId === bundle.id && (
+                            <div role="menu" onClick={(event) => event.stopPropagation()} className={`absolute right-0 z-30 w-48 overflow-hidden rounded-lg border border-slate-200 bg-white py-1.5 shadow-xl ${index >= filteredBundles.length - 2 ? "bottom-10" : "top-10"}`}>
+                              <BundleAction icon={PackageCheck} label={bundle.status === "Active" ? "Mark Inactive" : "Mark Active"} color={bundle.status === "Active" ? "text-slate-500" : "text-emerald-600"} onClick={() => toggleBundleStatus(bundle.id)} />
+                              <BundleAction icon={Copy} label="Duplicate bundle" color="text-blue-600" onClick={() => duplicateBundle(bundle)} />
+                              <div className="my-1 border-t border-slate-100" />
+                              <BundleAction icon={Trash2} label="Delete bundle" color="text-rose-600" onClick={() => deleteBundle(bundle.id)} />
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -420,6 +478,51 @@ const bundleAssets = [
   { id: "MOU-OPS-0148", name: "Mouse - Logitech M100", category: "Mouse", image: mouseImage },
   { id: "CPU-OPS-0045", name: "CPU - Dell OptiPlex 7010", category: "CPU", image: cpuImage },
 ];
+function EditBundleModal({ bundle, visible, onClose, onSave }) {
+  const [name, setName] = useState(bundle.name);
+  const [description, setDescription] = useState(bundle.description);
+  const [status, setStatus] = useState(bundle.status);
+  const inputClass = "h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-100";
+
+  useEffect(() => {
+    const handleKeyDown = (event) => event.key === "Escape" && onClose();
+    document.addEventListener("keydown", handleKeyDown);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = "";
+    };
+  }, []);
+
+  const submit = (event) => {
+    event.preventDefault();
+    onSave({ ...bundle, name: name.trim(), description: description.trim(), status });
+  };
+
+  return (
+    <div onMouseDown={(event) => event.target === event.currentTarget && onClose()} className={`fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-[1px] transition-opacity duration-200 ${visible ? "opacity-100" : "opacity-0"}`}>
+      <section role="dialog" aria-modal="true" aria-labelledby="edit-bundle-title" className={`w-full max-w-[560px] overflow-hidden rounded-2xl bg-white shadow-2xl transition-all duration-200 ease-out ${visible ? "translate-y-0 scale-100 opacity-100" : "translate-y-5 scale-[0.96] opacity-0"}`}>
+        <header className="flex items-start justify-between border-b border-slate-200 px-6 py-5">
+          <div><h2 id="edit-bundle-title" className="text-xl font-bold">Edit Workstation Bundle</h2><p className="mt-1 text-sm text-slate-500">Update the bundle information and availability.</p></div>
+          <button type="button" onClick={onClose} aria-label="Close edit bundle" className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100"><X size={18} /></button>
+        </header>
+        <form onSubmit={submit} className="px-6 py-5">
+          <div className="space-y-4">
+            <BundleField label="Bundle Name" required><input required value={name} onChange={(event) => setName(event.target.value)} className={inputClass} /></BundleField>
+            <BundleField label="Description"><textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={200} rows={4} className="w-full resize-none rounded-lg border border-slate-200 p-3 text-sm font-medium text-slate-700 outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-100" /></BundleField>
+            <BundleField label="Status"><select value={status} onChange={(event) => setStatus(event.target.value)} className={inputClass}><option>Active</option><option>Inactive</option></select></BundleField>
+            <div className="grid grid-cols-2 gap-4 rounded-lg bg-slate-50 p-4"><div><p className="text-xs text-slate-500">Items in bundle</p><p className="mt-1 text-sm font-semibold text-slate-800">{bundle.items} Items</p></div><div><p className="text-xs text-slate-500">Currently in use</p><p className="mt-1 text-sm font-semibold text-slate-800">{bundle.inUse} {bundle.usageLabel}</p></div></div>
+          </div>
+          <footer className="-mx-6 -mb-5 mt-5 flex justify-end gap-3 border-t border-slate-200 px-6 py-4"><button type="button" onClick={onClose} className="h-10 rounded-lg border border-slate-200 px-5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancel</button><button type="submit" className="h-10 rounded-lg bg-violet-600 px-5 text-sm font-semibold text-white hover:bg-violet-700">Save Changes</button></footer>
+        </form>
+      </section>
+    </div>
+  );
+}
+
+function BundleAction({ icon: Icon, label, color, onClick }) {
+  return <button type="button" role="menuitem" onClick={onClick} className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-slate-700 transition hover:bg-slate-50"><Icon size={14} className={color} />{label}</button>;
+}
 function CreateBundleModal({visible,onClose}) {
   const [selected,setSelected]=useState([]); const [query,setQuery]=useState(""); const [category,setCategory]=useState("All Categories");
   const shown=bundleAssets.filter((item)=>(category==="All Categories"||item.category===category)&&item.name.toLowerCase().includes(query.toLowerCase()));

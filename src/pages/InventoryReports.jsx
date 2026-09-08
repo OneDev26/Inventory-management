@@ -1,4 +1,6 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+import PageButton from "../components/PageButton";
+import FilterSelect from "../components/FilterSelect";
+import React, { useEffect, useMemo, useState } from "react";
 import Header from "../components/Header";
 import { useDispatch, useSelector } from "react-redux";
 import { reportGenerated, selectGeneratedReports } from "../store/reportsSlice";
@@ -15,6 +17,7 @@ import {
   PieChart,
   Plus,
   Search,
+  Trash2,
   X,
 } from "lucide-react";
 
@@ -191,6 +194,9 @@ export default function InventoryReports() {
   const [location, setLocation] = useState("All Locations");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const [reportStatuses, setReportStatuses] = useState({});
+  const [removedReportIds, setRemovedReportIds] = useState([]);
   const [modalMounted, setModalMounted] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
 
@@ -213,10 +219,30 @@ export default function InventoryReports() {
     };
   }, [modalMounted]);
 
+  useEffect(() => {
+    if (openMenuId === null) return undefined;
+    const closeMenu = () => setOpenMenuId(null);
+    document.addEventListener("click", closeMenu);
+    return () => document.removeEventListener("click", closeMenu);
+  }, [openMenuId]);
+
+  const updateReportStatus = (reportId, nextStatus) => {
+    setReportStatuses((current) => ({ ...current, [reportId]: nextStatus }));
+    setOpenMenuId(null);
+  };
+
+  const removeReport = (reportId) => {
+    setRemovedReportIds((current) => [...current, reportId]);
+    setOpenMenuId(null);
+  };
+
   const filteredReports = useMemo(() => {
     const q = search.trim().toLowerCase();
 
-    return [...generatedReports, ...reportsData].filter((report) => {
+    return [...generatedReports, ...reportsData]
+      .filter((report) => !removedReportIds.includes(report.id))
+      .map((report) => ({ ...report, status: reportStatuses[report.id] || report.status }))
+      .filter((report) => {
       const matchesSearch =
         !q ||
         report.name.toLowerCase().includes(q) ||
@@ -241,7 +267,7 @@ export default function InventoryReports() {
         matchesLocation
       );
     });
-  }, [search, reportType, department, location, generatedReports]);
+  }, [search, reportType, department, location, generatedReports, reportStatuses, removedReportIds]);
 
   const handleDownload = (report) => {
     console.log("Download report:", report);
@@ -431,10 +457,7 @@ export default function InventoryReports() {
 
                   {/* STATUS */}
                   <td className="px-4 py-3">
-                    <span className="inline-flex items-center gap-1.5 rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-600">
-                      <CheckCircle2 size={10} />
-                      {report.status}
-                    </span>
+                    <ReportStatus status={report.status} />
                   </td>
 
                   {/* ACTIONS */}
@@ -449,13 +472,30 @@ export default function InventoryReports() {
                         <Download size={13} />
                       </button>
 
-                      <button
-                        type="button"
-                        title="More Options"
-                        className="grid h-8 w-8 place-items-center rounded-md border border-slate-200 text-slate-500 transition hover:bg-slate-50"
-                      >
-                        <MoreVertical size={14} />
-                      </button>
+                      <div className="relative">
+                        <button
+                          type="button"
+                          title="More Options"
+                          aria-haspopup="menu"
+                          aria-expanded={openMenuId === report.id}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setOpenMenuId((current) => current === report.id ? null : report.id);
+                          }}
+                          className="grid h-8 w-8 place-items-center rounded-md border border-slate-200 text-slate-500 transition hover:bg-slate-50"
+                        >
+                          <MoreVertical size={14} />
+                        </button>
+
+                        {openMenuId === report.id && (
+                          <div role="menu" onClick={(event) => event.stopPropagation()} className="absolute right-0 top-10 z-30 w-48 overflow-hidden rounded-lg border border-slate-200 bg-white py-1.5 shadow-xl">
+                            <ReportMenuButton icon={CheckCircle2} label="Mark Completed" color="text-emerald-600" onClick={() => updateReportStatus(report.id, "Completed")} />
+                            <ReportMenuButton icon={Clock3} label="Mark Pending" color="text-amber-600" onClick={() => updateReportStatus(report.id, "Pending")} />
+                            <div className="my-1 border-t border-slate-100" />
+                            <ReportMenuButton icon={Trash2} label="Remove from list" color="text-rose-600" onClick={() => removeReport(report.id)} />
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </td>
                 </tr>
@@ -482,7 +522,7 @@ export default function InventoryReports() {
           </p>
 
           <div className="flex items-center gap-1.5">
-            <PageButton
+            <PageButton activeVariant="outline"
               onClick={() =>
                 setPage((current) => Math.max(1, current - 1))
               }
@@ -491,7 +531,7 @@ export default function InventoryReports() {
             </PageButton>
 
             {[1, 2, 3, 4].map((number) => (
-              <PageButton
+              <PageButton activeVariant="outline"
                 key={number}
                 active={page === number}
                 onClick={() => setPage(number)}
@@ -500,7 +540,7 @@ export default function InventoryReports() {
               </PageButton>
             ))}
 
-            <PageButton
+            <PageButton activeVariant="outline"
               onClick={() =>
                 setPage((current) => Math.min(4, current + 1))
               }
@@ -555,29 +595,31 @@ function FormatChoice({ name, label, defaultChecked = false }) {
 }
 function CheckOption({ label }) {
   return <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-slate-700"><input type="checkbox" defaultChecked className="h-4 w-4 accent-violet-600" />{label}</label>;
-}function FilterSelect({
-  value,
-  setValue,
-  options,
-}) {
+}
+function ReportStatus({ status }) {
+  const completed = status === "Completed";
+  const Icon = completed ? CheckCircle2 : Clock3;
   return (
-    <select
-      value={value}
-      onChange={(e) => setValue(e.target.value)}
-      className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
-    >
-      {options.map((option) => (
-        <option
-          key={option}
-          value={option}
-        >
-          {option}
-        </option>
-      ))}
-    </select>
+    <span className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium ${completed ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"}`}>
+      <Icon size={11} />
+      {status}
+    </span>
   );
 }
 
+function ReportMenuButton({ icon: Icon, label, color, onClick }) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={onClick}
+      className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+    >
+      <Icon size={14} className={color} />
+      {label}
+    </button>
+  );
+}
 function ReportType({ type }) {
   const styles = {
     Inventory: "bg-violet-50 text-violet-600",
@@ -616,25 +658,4 @@ function FormatBadge({ format }) {
     </span>
   );
 }
-
-function PageButton({
-  children,
-  active,
-  onClick,
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`grid h-8 min-w-8 place-items-center rounded-md border px-2 text-xs font-medium transition ${
-        active
-          ? "border-violet-600 bg-white text-violet-600 shadow-sm"
-          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
 

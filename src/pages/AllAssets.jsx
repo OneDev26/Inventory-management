@@ -1,3 +1,5 @@
+import PageButton from "../components/PageButton";
+import FilterSelect from "../components/FilterSelect";
 import Header from "../components/Header";
 import laptopImage from "../assets/laptop.png";
 import monitorImage from "../assets/monitor.png";
@@ -22,6 +24,7 @@ import {
   Plus,
   Search,
   TriangleAlert,
+  Trash2,
   CalendarDays,
   ScanBarcode,
   UploadCloud,
@@ -276,6 +279,11 @@ export default function AllAssets() {
   const [assignment, setAssignment] = useState("All Assignments");
   const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [page, setPage] = useState(1);
+  const [assetRows, setAssetRows] = useState(assets);
+  const [openActionId, setOpenActionId] = useState(null);
+  const [selectedAsset, setSelectedAsset] = useState(null);
+  const [detailsMounted, setDetailsMounted] = useState(false);
+  const [detailsVisible, setDetailsVisible] = useState(false);
   const [assetModalMounted, setAssetModalMounted] = useState(false);
   const [assetModalVisible, setAssetModalVisible] = useState(false);
   const openAssetModal = () => { setAssetModalMounted(true); requestAnimationFrame(() => requestAnimationFrame(() => setAssetModalVisible(true))); };
@@ -290,7 +298,7 @@ export default function AllAssets() {
   const filteredAssets = useMemo(() => {
     const q = search.trim().toLowerCase();
 
-    return assets.filter((item) => {
+    return assetRows.filter((item) => {
       const matchesSearch =
         !q ||
         item.asset.toLowerCase().includes(q) ||
@@ -331,13 +339,67 @@ export default function AllAssets() {
         matchesAssignment
       );
     });
-  }, [search, type, category, department, status, condition, location, assignment]);
+  }, [search, type, category, department, status, condition, location, assignment, assetRows]);
 
   const extraFilterCount = [
     condition !== "All Conditions",
     location !== "All Locations",
     assignment !== "All Assignments",
   ].filter(Boolean).length;
+
+  useEffect(() => {
+    if (openActionId === null) return undefined;
+    const closeMenu = () => setOpenActionId(null);
+    document.addEventListener("click", closeMenu);
+    return () => document.removeEventListener("click", closeMenu);
+  }, [openActionId]);
+
+  const openDetails = (asset) => {
+    setSelectedAsset(asset);
+    setDetailsMounted(true);
+    requestAnimationFrame(() => requestAnimationFrame(() => setDetailsVisible(true)));
+  };
+
+  const closeDetails = () => {
+    setDetailsVisible(false);
+    window.setTimeout(() => {
+      setDetailsMounted(false);
+      setSelectedAsset(null);
+    }, 220);
+  };
+
+  useEffect(() => {
+    if (!detailsMounted) return undefined;
+    const handleKeyDown = (event) => event.key === "Escape" && closeDetails();
+    document.addEventListener("keydown", handleKeyDown);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = "";
+    };
+  }, [detailsMounted]);
+
+  const updateAssetStatus = (assetId, nextStatus) => {
+    setAssetRows((current) => current.map((asset) => asset.id === assetId ? { ...asset, status: nextStatus } : asset));
+    setOpenActionId(null);
+  };
+
+  const removeAsset = (assetId) => {
+    setAssetRows((current) => current.filter((asset) => asset.id !== assetId));
+    setOpenActionId(null);
+  };
+
+  const exportAssets = () => {
+    const headings = ["Asset", "Asset ID", "Serial", "Category", "Department", "Location", "Status", "Condition", "Purchase Date", "Assigned To"];
+    const rows = filteredAssets.map((asset) => [asset.asset, asset.id, asset.serial, asset.category, asset.department, asset.location, asset.status, asset.condition, asset.purchaseDate, asset.assignedTo || "Unassigned"]);
+    const csv = [headings, ...rows].map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(",")).join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "assets.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   const clearFilters = () => {
     setSearch("");
@@ -353,6 +415,7 @@ export default function AllAssets() {
   return (
     <main className="min-h-screen bg-[#f8f9fc] px-4 py-5 font-['Geist',sans-serif] text-slate-900">
       {assetModalMounted && <AddAssetModal visible={assetModalVisible} onClose={closeAssetModal} />}
+      {detailsMounted && selectedAsset && <AssetDetailsModal asset={selectedAsset} visible={detailsVisible} onClose={closeDetails} />}
       {/* Header */}
       <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -366,7 +429,7 @@ export default function AllAssets() {
         </div>
 
         <div className="flex flex-col items-end gap-3"><Header /><div className="flex items-center gap-3">
-          <button className="flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+          <button type="button" onClick={exportAssets} className="flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
             <Download size={15} />
             Export
           </button>
@@ -434,6 +497,7 @@ export default function AllAssets() {
           </div>
 
           <FilterSelect
+            size="compact"
             label="Asset Type"
             value={type}
             setValue={setType}
@@ -441,6 +505,7 @@ export default function AllAssets() {
           />
 
           <FilterSelect
+            size="compact"
             label="Category"
             value={category}
             setValue={setCategory}
@@ -448,6 +513,7 @@ export default function AllAssets() {
           />
 
           <FilterSelect
+            size="compact"
             label="Department"
             value={department}
             setValue={setDepartment}
@@ -455,6 +521,7 @@ export default function AllAssets() {
           />
 
           <FilterSelect
+            size="compact"
             label="Status"
             value={status}
             setValue={setStatus}
@@ -475,9 +542,9 @@ export default function AllAssets() {
 
           {showMoreFilters && (
             <div id="more-asset-filters" className="absolute right-24 top-full z-20 mt-2 grid w-[620px] grid-cols-3 gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-xl">
-              <FilterSelect label="Condition" value={condition} setValue={setCondition} options={["All Conditions", "Good", "Minor Issues", "-"]} />
-              <FilterSelect label="Location / Workstation" value={location} setValue={setLocation} options={["All Locations", ...new Set(assets.map((item) => item.location))]} />
-              <FilterSelect label="Assignment" value={assignment} setValue={setAssignment} options={["All Assignments", "Assigned", "Unassigned"]} />
+              <FilterSelect size="compact" label="Condition" value={condition} setValue={setCondition} options={["All Conditions", "Good", "Minor Issues", "-"]} />
+              <FilterSelect size="compact" label="Location / Workstation" value={location} setValue={setLocation} options={["All Locations", ...new Set(assets.map((item) => item.location))]} />
+              <FilterSelect size="compact" label="Assignment" value={assignment} setValue={setAssignment} options={["All Assignments", "Assigned", "Unassigned"]} />
             </div>
           )}
 
@@ -519,7 +586,7 @@ export default function AllAssets() {
             </thead>
 
             <tbody>
-              {filteredAssets.map((item) => (
+              {filteredAssets.map((item, index) => (
                 <tr
                   key={item.id}
                   className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/60"
@@ -593,13 +660,24 @@ export default function AllAssets() {
 
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-1.5">
-                      <button className="grid h-7 w-7 place-items-center rounded-md border border-slate-200 text-indigo-600 transition hover:bg-indigo-50">
+                      <button type="button" onClick={() => openDetails(item)} aria-label={`View ${item.asset}`} className="grid h-7 w-7 place-items-center rounded-md border border-slate-200 text-indigo-600 transition hover:bg-indigo-50">
                         <Eye size={13} />
                       </button>
 
-                      <button className="grid h-7 w-7 place-items-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-50">
-                        <MoreVertical size={13} />
-                      </button>
+                      <div className="relative">
+                        <button type="button" onClick={(event) => { event.stopPropagation(); setOpenActionId((current) => current === item.id ? null : item.id); }} aria-label={`Manage ${item.asset}`} aria-haspopup="menu" aria-expanded={openActionId === item.id} className="grid h-7 w-7 place-items-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-50">
+                          <MoreVertical size={13} />
+                        </button>
+                        {openActionId === item.id && (
+                          <div role="menu" onClick={(event) => event.stopPropagation()} className={`absolute right-0 z-30 w-48 overflow-hidden rounded-lg border border-slate-200 bg-white py-1.5 shadow-xl ${index >= filteredAssets.length - 3 ? "bottom-9" : "top-9"}`}>
+                            <AssetAction icon={PackageCheck} label="Mark Available" color="text-blue-600" onClick={() => updateAssetStatus(item.id, "Available")} />
+                            <AssetAction icon={TriangleAlert} label="Send for Repair" color="text-orange-600" onClick={() => updateAssetStatus(item.id, "Under Repair")} />
+                            <AssetAction icon={XCircle} label="Mark Lost / Missing" color="text-rose-600" onClick={() => updateAssetStatus(item.id, "Lost / Missing")} />
+                            <div className="my-1 border-t border-slate-100" />
+                            <AssetAction icon={Trash2} label="Remove asset" color="text-rose-600" onClick={() => removeAsset(item.id)} />
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </td>
                 </tr>
@@ -615,12 +693,12 @@ export default function AllAssets() {
           </p>
 
           <div className="flex items-center gap-1.5">
-            <PageButton>
+            <PageButton fontWeight="semibold" onClick={() => setPage((current) => Math.max(1, current - 1))}>
               <ChevronLeft size={13} />
             </PageButton>
 
             {[1, 2, 3].map((num) => (
-              <PageButton
+              <PageButton fontWeight="semibold"
                 key={num}
                 active={page === num}
                 onClick={() => setPage(num)}
@@ -631,9 +709,9 @@ export default function AllAssets() {
 
             <span className="px-1 text-xs text-slate-500">...</span>
 
-            <PageButton>215</PageButton>
+            <PageButton fontWeight="semibold" active={page === 215} onClick={() => setPage(215)}>215</PageButton>
 
-            <PageButton>
+            <PageButton fontWeight="semibold" onClick={() => setPage((current) => Math.min(215, current + 1))}>
               <ChevronRight size={13} />
             </PageButton>
           </div>
@@ -643,6 +721,64 @@ export default function AllAssets() {
   );
 }
 
+function AssetDetailsModal({ asset, visible, onClose }) {
+  const details = [
+    ["Asset ID", asset.id],
+    ["Serial Number", asset.serial.replace("SN: ", "")],
+    ["Category", asset.category],
+    ["Department", asset.department],
+    ["Location / Workstation", asset.location],
+    ["Purchase Date", asset.purchaseDate],
+    ["Condition", asset.condition],
+    ["Assigned To", asset.assignedTo || "Unassigned"],
+  ];
+
+  return (
+    <div onMouseDown={(event) => event.target === event.currentTarget && onClose()} className={`fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-[1px] transition-opacity duration-200 ${visible ? "opacity-100" : "opacity-0"}`}>
+      <section role="dialog" aria-modal="true" aria-labelledby="asset-details-title" className={`w-full max-w-[560px] overflow-hidden rounded-2xl bg-white shadow-2xl transition-all duration-200 ease-out ${visible ? "translate-y-0 scale-100 opacity-100" : "translate-y-5 scale-[0.96] opacity-0"}`}>
+        <header className="flex items-start justify-between border-b border-slate-200 px-6 py-5">
+          <div>
+            <h2 id="asset-details-title" className="text-xl font-bold text-slate-900">Asset Details</h2>
+            <p className="mt-1 text-sm text-slate-500">Complete information for this inventory asset.</p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close asset details" className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-100"><X size={18} /></button>
+        </header>
+
+        <div className="px-6 py-5">
+          <div className="mb-5 flex items-center gap-4 rounded-xl bg-slate-50 p-4">
+            <img src={asset.image} alt={asset.asset} className="h-16 w-20 rounded-lg bg-white object-contain p-1" />
+            <div className="min-w-0 flex-1">
+              <h3 className="truncate text-base font-semibold text-slate-900">{asset.asset}</h3>
+              <div className="mt-2"><StatusBadge status={asset.status} /></div>
+            </div>
+          </div>
+
+          <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+            {details.map(([label, value]) => (
+              <div key={label}>
+                <dt className="text-xs font-medium text-slate-500">{label}</dt>
+                <dd className="mt-1 text-sm font-semibold text-slate-800">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+
+        <footer className="flex justify-end border-t border-slate-200 px-6 py-4">
+          <button type="button" onClick={onClose} className="h-10 rounded-lg bg-violet-600 px-5 text-sm font-semibold text-white transition hover:bg-violet-700">Close</button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+function AssetAction({ icon: Icon, label, color = "text-slate-500", onClick }) {
+  return (
+    <button type="button" role="menuitem" onClick={onClick} className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-slate-700 transition hover:bg-slate-50">
+      <Icon size={14} className={color} />
+      {label}
+    </button>
+  );
+}
 function AddAssetModal({ visible, onClose }) {
   const inputClass = "h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100";
   const submit = (event) => { event.preventDefault(); onClose(); };
@@ -663,25 +799,6 @@ function AddAssetModal({ visible, onClose }) {
 }
 function ModalField({label,required,hint,children}){return <label className="block"><span className="mb-1.5 block text-xs font-semibold text-slate-600">{label}{required&&<span className="ml-1 text-rose-500">*</span>}</span>{children}{hint&&<span className="mt-1.5 block text-[11px] text-slate-500">{hint}</span>}</label>}
 function ModalDate({placeholder,inputClass}){return <div className="relative"><input type="text" placeholder={placeholder} className={`${inputClass} pr-10`}/><CalendarDays size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"/></div>}
-function FilterSelect({ label, value, setValue, options }) {
-  return (
-    <div>
-      <label className="mb-1.5 block text-xs font-medium text-slate-600">
-        {label}
-      </label>
-
-      <select
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        className="h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
-      >
-        {options.map((option) => (
-          <option key={option}>{option}</option>
-        ))}
-      </select>
-    </div>
-  );
-}
 
 function StatusBadge({ status }) {
   const styles = {
@@ -720,21 +837,4 @@ function Condition({ condition }) {
     </span>
   );
 }
-
-function PageButton({ children, active, onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`grid h-8 min-w-8 place-items-center rounded-md border px-2 text-xs font-semibold transition ${
-        active
-          ? "border-violet-600 bg-violet-600 text-white shadow-sm"
-          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
-
 

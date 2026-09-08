@@ -1,4 +1,5 @@
-﻿import Header from "../components/Header";
+import PageButton from "../components/PageButton";
+import Header from "../components/Header";
 import clearanceBoxImage from "../assets/clearance_box.png";
 import monitorImage from "../assets/monitor.png";
 import keyboardImage from "../assets/keyboard.png";
@@ -16,6 +17,7 @@ import {
   MoreVertical,
   Plus,
   Search,
+  Trash2,
   Wrench,
   UploadCloud,
   X,
@@ -175,6 +177,10 @@ const clearances = [
 
 export default function RepairsClearance() {
   const [tab, setTab] = useState("repairs");
+  const [repairRows, setRepairRows] = useState(repairs);
+  const [clearanceRows, setClearanceRows] = useState(clearances);
+  const [selectedRecord, setSelectedRecord] = useState(null);
+  const [openActionId, setOpenActionId] = useState(null);
 
   const [repairStatus, setRepairStatus] = useState("All Status");
   const [repairCategory, setRepairCategory] = useState("All Categories");
@@ -195,10 +201,28 @@ export default function RepairsClearance() {
     useState("All Departments");
   const [clearanceSearch, setClearanceSearch] = useState("");
 
+  useEffect(() => {
+    if (!openActionId) return undefined;
+    const close = () => setOpenActionId(null);
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [openActionId]);
+
+  const changeStatus = (type, id, status) => {
+    const setter = type === "repair" ? setRepairRows : setClearanceRows;
+    setter((rows) => rows.map((row) => row.id === id ? { ...row, status } : row));
+    setOpenActionId(null);
+  };
+  const deleteRow = (type, id) => {
+    const setter = type === "repair" ? setRepairRows : setClearanceRows;
+    setter((rows) => rows.filter((row) => row.id !== id));
+    setOpenActionId(null);
+  };
+
   const filteredRepairs = useMemo(() => {
     const q = repairSearch.trim().toLowerCase();
 
-    return repairs.filter((item) => {
+    return repairRows.filter((item) => {
       const searchMatch =
         !q ||
         item.id.toLowerCase().includes(q) ||
@@ -215,12 +239,12 @@ export default function RepairsClearance() {
 
       return searchMatch && statusMatch && categoryMatch;
     });
-  }, [repairSearch, repairStatus, repairCategory]);
+  }, [repairSearch, repairStatus, repairCategory, repairRows]);
 
   const filteredClearances = useMemo(() => {
     const q = clearanceSearch.trim().toLowerCase();
 
-    return clearances.filter((item) => {
+    return clearanceRows.filter((item) => {
       const searchMatch =
         !q ||
         item.id.toLowerCase().includes(q) ||
@@ -241,11 +265,13 @@ export default function RepairsClearance() {
     clearanceSearch,
     clearanceStatus,
     clearanceDepartment,
+    clearanceRows,
   ]);
 
   return (
     <main className="min-h-screen bg-[#f8f9fc] px-4 py-5 font-['Geist',sans-serif] text-slate-900">
       {repairModalMounted && <NewRepairModal visible={repairModalVisible} onClose={closeRepairModal} />}
+      {selectedRecord && <RecordDetailsModal type={selectedRecord.type} item={selectedRecord.item} onClose={() => setSelectedRecord(null)} />}
       {/* HEADER */}
       <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -393,7 +419,7 @@ export default function RepairsClearance() {
             </thead>
 
             <tbody>
-              {filteredRepairs.map((repair) => (
+              {filteredRepairs.map((repair, index) => (
                 <tr
                   key={repair.id}
                   className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/60"
@@ -431,7 +457,7 @@ export default function RepairsClearance() {
                   </td>
 
                   <td className="px-4 py-3">
-                    <RowActions />
+                    <RowActions type="repair" item={repair} index={index} total={filteredRepairs.length} open={openActionId === repair.id} onToggle={(event) => { event.stopPropagation(); setOpenActionId((value) => value === repair.id ? null : repair.id); }} onView={() => setSelectedRecord({ type: "repair", item: repair })} onStatus={(status) => changeStatus("repair", repair.id, status)} onDelete={() => deleteRow("repair", repair.id)} />
                   </td>
                 </tr>
               ))}
@@ -531,7 +557,7 @@ export default function RepairsClearance() {
             </thead>
 
             <tbody>
-              {filteredClearances.map((item) => (
+              {filteredClearances.map((item, index) => (
                 <tr
                   key={item.id}
                   className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/60"
@@ -575,7 +601,7 @@ export default function RepairsClearance() {
                         </span>
                       </div>
 
-                      <button className="mt-1 text-[10px] font-medium text-violet-600 hover:underline">
+                      <button type="button" onClick={() => setSelectedRecord({ type: "clearance", item })} className="mt-1 text-[10px] font-medium text-violet-600 hover:underline">
                         View Items
                       </button>
                     </div>
@@ -588,7 +614,7 @@ export default function RepairsClearance() {
                   <td className="px-4 py-3 text-xs font-medium text-slate-600">{item.initiatedOn}</td>
 
                   <td className="px-4 py-3">
-                    <RowActions />
+                    <RowActions type="clearance" item={item} index={index} total={filteredClearances.length} open={openActionId === item.id} onToggle={(event) => { event.stopPropagation(); setOpenActionId((value) => value === item.id ? null : item.id); }} onView={() => setSelectedRecord({ type: "clearance", item })} onStatus={(status) => changeStatus("clearance", item.id, status)} onDelete={() => deleteRow("clearance", item.id)} />
                   </td>
                 </tr>
               ))}
@@ -719,19 +745,24 @@ function PriorityBadge({ priority }) {
   );
 }
 
-function RowActions() {
-  return (
-    <div className="flex items-center gap-2">
-      <button className="grid h-8 w-8 place-items-center rounded-md border border-slate-200 text-indigo-600 hover:bg-indigo-50">
-        <Eye size={13} />
-      </button>
-
-      <button className="grid h-8 w-8 place-items-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50">
-        <MoreVertical size={14} />
-      </button>
-    </div>
-  );
+function RowActions({ type, item, index, total, open, onToggle, onView, onStatus, onDelete }) {
+  const statuses = type === "repair" ? ["In Progress", "Waiting for Parts", "Completed"] : ["Pending", "In Progress", "Completed", "Cancelled"];
+  return <div className="flex items-center gap-2"><button type="button" onClick={onView} className="grid h-8 w-8 place-items-center rounded-md border border-slate-200 text-indigo-600 hover:bg-indigo-50"><Eye size={13}/></button><div className="relative"><button type="button" onClick={onToggle} className="grid h-8 w-8 place-items-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50"><MoreVertical size={14}/></button>{open && <div onClick={(event) => event.stopPropagation()} className={`absolute right-0 z-30 w-48 origin-top-right animate-[repair-menu-in_160ms_ease-out] rounded-lg border border-slate-200 bg-white py-1.5 shadow-xl ${index >= total - 2 ? "bottom-10" : "top-10"}`}>{statuses.filter((status) => status !== item.status).map((status) => <button key={status} type="button" onClick={() => onStatus(status)} className="block w-full px-3 py-2 text-left text-xs font-medium hover:bg-slate-50">Mark {status}</button>)}<div className="my-1 border-t border-slate-100"/><button type="button" onClick={onDelete} className="flex w-full items-center gap-2 px-3 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50"><Trash2 size={14}/>Delete Record</button></div>}</div></div>;
 }
+function RecordDetailsModal({ type, item, onClose }) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true)));
+    const handleKeyDown = (event) => event.key === "Escape" && handleClose();
+    document.addEventListener("keydown", handleKeyDown);
+    document.body.style.overflow = "hidden";
+    return () => { document.removeEventListener("keydown", handleKeyDown); document.body.style.overflow = ""; };
+  }, []);
+  const handleClose = () => { setVisible(false); window.setTimeout(onClose, 220); };
+  const repair = type === "repair";
+  return <div onMouseDown={(event) => event.target === event.currentTarget && handleClose()} className={`fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-[1px] transition-opacity duration-200 ${visible ? "opacity-100" : "opacity-0"}`}><section className={`w-full max-w-[620px] rounded-2xl bg-white shadow-2xl transition-all duration-200 ease-out ${visible ? "translate-y-0 scale-100 opacity-100" : "translate-y-5 scale-[0.96] opacity-0"}`}><header className="flex justify-between border-b border-slate-200 px-6 py-5"><div><h2 className="text-xl font-bold">{repair ? "Repair Request Details" : "Clearance Details"}</h2><p className="mt-1 text-sm text-slate-500">{item.id}</p></div><button type="button" onClick={handleClose} className="grid h-9 w-9 place-items-center rounded-lg transition hover:bg-slate-100"><X size={18}/></button></header><div className="p-6">{repair ? <AssetCell item={item}/> : <EmployeeCell name={item.employee} employeeId={item.employeeId} initials={item.initials}/>}<div className="mt-5 grid grid-cols-2 gap-4 rounded-xl bg-slate-50 p-4"><Detail label="Department" value={item.department}/><Detail label={repair ? "Reported On" : "Last Working Day"} value={repair ? item.reportedOn : item.lastWorkingDay}/><Detail label={repair ? "Issue" : "Assets to Return"} value={repair ? item.issue : `${item.items} Items`}/><Detail label="Status" value={item.status}/></div></div></section></div>;
+}
+function Detail({ label, value }) { return <div><p className="text-[10px] font-semibold uppercase text-slate-400">{label}</p><p className="mt-2 text-xs font-medium text-slate-700">{value}</p></div>; }
 
 function SimpleSelect({
   value,
@@ -765,19 +796,19 @@ function TableFooter({ text, totalPage }) {
       </p>
 
       <div className="flex items-center gap-1.5">
-        <PageButton>
+        <PageButton textSize="tiny">
           <ChevronLeft size={12} />
         </PageButton>
 
-        <PageButton active>
+        <PageButton textSize="tiny" active>
           1
         </PageButton>
 
-        <PageButton>
+        <PageButton textSize="tiny">
           2
         </PageButton>
 
-        <PageButton>
+        <PageButton textSize="tiny">
           3
         </PageButton>
 
@@ -785,34 +816,15 @@ function TableFooter({ text, totalPage }) {
           ...
         </span>
 
-        <PageButton>
+        <PageButton textSize="tiny">
           {totalPage}
         </PageButton>
 
-        <PageButton>
+        <PageButton textSize="tiny">
           <ChevronRight size={12} />
         </PageButton>
       </div>
     </div>
   );
 }
-
-function PageButton({ children, active }) {
-  return (
-    <button
-      className={`grid h-8 min-w-8 place-items-center rounded-md border px-2 text-[10px] font-medium ${
-        active
-          ? "border-violet-600 bg-violet-600 text-white"
-          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
-
-
-
-
 
